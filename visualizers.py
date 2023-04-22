@@ -3,6 +3,7 @@ import numpngw
 from PIL import Image, ImageTk
 from itertools import count
 import tkinter as tk
+import os
 
 
 class GIFVisualizer(object):
@@ -17,7 +18,7 @@ class GIFVisualizer(object):
 
     def get_gif(self):
         # generate the gif
-        filename = 'pushing_visualization.gif'
+        filename = os.path.join(os.getcwd(), 'pushing_visualization.gif')
         print("Creating animated gif, please wait about 10 seconds")
         numpngw.write_apng(filename, self.frames, delay=10)
         return filename

@@ -1,4 +1,5 @@
 import torch
+import os
 import numpy as np
 import matplotlib.pyplot as plt
 from tqdm import tqdm
@@ -18,16 +19,16 @@ validation_data = np.load('validation_data.npy', allow_pickle=True)
 
 # Load models
 pushing_absolute_dynamics_model = AbsoluteDynamicsModel(3,3).to(DEVICE)
-pushing_absolute_dynamics_model.load_state_dict(torch.load('pushing_absolute_dynamics_model.pt'))
+pushing_absolute_dynamics_model.load_state_dict(torch.load(os.path.join('models', 'pushing_absolute_dynamics_model.pt')))
 
 pushing_residual_dynamics_model = ResidualDynamicsModel(3,3).to(DEVICE)
-pushing_residual_dynamics_model.load_state_dict(torch.load('pushing_residual_dynamics_model.pt'))
+pushing_residual_dynamics_model.load_state_dict(torch.load(os.path.join('models', 'pushing_residual_dynamics_model.pt')))
 
 absolute_neuralODE_model = Absolute_ODEnet(3,3,10).to(DEVICE)
-absolute_neuralODE_model.load_state_dict(torch.load('neuralODE_absolute_dynamics_model.pt'))
+absolute_neuralODE_model.load_state_dict(torch.load(os.path.join('models', 'neuralODE_absolute_dynamics_model.pt')))
 
 residual_neuralODE_model = Residual_ODEnet(3,3,10).to(DEVICE)
-residual_neuralODE_model.load_state_dict(torch.load('neuralODE_residual_dynamics_model_neg1.pt'))
+residual_neuralODE_model.load_state_dict(torch.load(os.path.join('models', 'neuralODE_residual_dynamics_model.pt')))
 
 
 # Evaluate models on validation data
@@ -75,7 +76,7 @@ print(f'Validation loss for residual neuralODE dynamics model is {losses["Avg. M
 print()
 
 
-fig = plt.figure(figsize=(10,5), dpi=400)
+fig = plt.figure(figsize=(10,5))
 
 models = ("Absolute", "Residual", "Absolute NeuralODE", "Residual NeuralODE")
 x = np.arange(4)
@@ -99,7 +100,6 @@ plt.show()
 
 
 # Control on an obstacle free environment
-
 visualizer = GIFVisualizer()
 
 # set up controller and environment
@@ -112,7 +112,8 @@ state = state_0
 
 num_steps_max = 20
 
-for i in tqdm(range(num_steps_max)):
+for i in range(num_steps_max):
+    print(i)
     action = controller.control(state)
     state, reward, done, _ = env.step(action)
     if done:
