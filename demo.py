@@ -9,11 +9,10 @@ if sys_pf == 'darwin':
 
 import matplotlib.pyplot as plt
 from tqdm import tqdm
-import tkinter as tk
 
 from learning_state_dynamics import *
 from panda_neuralODE import *
-from visualizers import GIFVisualizer, ImageLabel
+from visualizers import GIFVisualizer
 from panda_pushing_env import TARGET_POSE_OBSTACLES, BOX_SIZE, PandaPushingEnv
 
 DEVICE = 'cpu'
@@ -139,10 +138,3 @@ for j in range(len(visualizer.frames)):
     plt.title('Frame ' + str(j))
     plt.pause(0.5)
 
-# visualizer.get_gif()
-
-# root = tk.Tk()
-# lbl = ImageLabel(root)
-# lbl.pack()
-# lbl.load('pushing_visualization.gif')
-# root.mainloop()
