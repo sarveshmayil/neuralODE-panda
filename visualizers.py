@@ -56,7 +56,7 @@ class ImageLabel(tk.Label):
             pass
 
         try:
-            self.delay = im.info['duration']
+            self.delay = int(im.info['duration'])
         except:
             self.delay = 100
 

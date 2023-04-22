@@ -1,6 +1,12 @@
 import torch
 import os
 import numpy as np
+
+from sys import platform as sys_pf
+if sys_pf == 'darwin':
+    import matplotlib
+    matplotlib.use("TkAgg")
+
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 import tkinter as tk
@@ -16,19 +22,18 @@ DEVICE = 'cpu'
 collected_data = np.load('collected_data.npy', allow_pickle=True)
 validation_data = np.load('validation_data.npy', allow_pickle=True)
 
-
 # Load models
 pushing_absolute_dynamics_model = AbsoluteDynamicsModel(3,3).to(DEVICE)
-pushing_absolute_dynamics_model.load_state_dict(torch.load(os.path.join('models', 'pushing_absolute_dynamics_model.pt')))
+pushing_absolute_dynamics_model.load_state_dict(torch.load(os.path.join('models', 'pushing_absolute_dynamics_model.pt'), map_location=DEVICE))
 
 pushing_residual_dynamics_model = ResidualDynamicsModel(3,3).to(DEVICE)
-pushing_residual_dynamics_model.load_state_dict(torch.load(os.path.join('models', 'pushing_residual_dynamics_model.pt')))
+pushing_residual_dynamics_model.load_state_dict(torch.load(os.path.join('models', 'pushing_residual_dynamics_model.pt'), map_location=DEVICE))
 
 absolute_neuralODE_model = Absolute_ODEnet(3,3,10).to(DEVICE)
-absolute_neuralODE_model.load_state_dict(torch.load(os.path.join('models', 'neuralODE_absolute_dynamics_model.pt')))
+absolute_neuralODE_model.load_state_dict(torch.load(os.path.join('models', 'neuralODE_absolute_dynamics_model.pt'), map_location=DEVICE))
 
 residual_neuralODE_model = Residual_ODEnet(3,3,10).to(DEVICE)
-residual_neuralODE_model.load_state_dict(torch.load(os.path.join('models', 'neuralODE_residual_dynamics_model.pt')))
+residual_neuralODE_model.load_state_dict(torch.load(os.path.join('models', 'neuralODE_residual_dynamics_model.pt'), map_location=DEVICE))
 
 
 # Evaluate models on validation data
