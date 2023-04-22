@@ -133,10 +133,16 @@ goal_reached = goal_distance < BOX_SIZE
 
 print(f'GOAL REACHED: {goal_reached}')
 
-visualizer.get_gif()
+for j in range(len(visualizer.frames)):
+    plt.figure(1); plt.clf()
+    plt.imshow(visualizer.frames[j])
+    plt.title('Frame ' + str(j))
+    plt.pause(0.5)
 
-root = tk.Tk()
-lbl = ImageLabel(root)
-lbl.pack()
-lbl.load('pushing_visualization.gif')
-root.mainloop()
+# visualizer.get_gif()
+
+# root = tk.Tk()
+# lbl = ImageLabel(root)
+# lbl.pack()
+# lbl.load('pushing_visualization.gif')
+# root.mainloop()

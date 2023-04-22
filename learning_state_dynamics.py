@@ -389,71 +389,74 @@ def collision_detection(state):
     box_size = BOX_SIZE  # scalar for parameter w
     in_collision = None
     # --- Your code here
-    B = state.shape[0]
-    w = box_size
-    box_half_diag = w/2/(2**0.5)
-
-    obs_w, obs_h = obstacle_dims[0], obstacle_dims[1]
-    obs_x, obs_y = obstacle_centre[0], obstacle_centre[1]
-    box_x, box_y, box_theta = state[:,0], state[:,1], state[:,2]
-
-    obs_r, obs_l = obs_x + obs_w/2, obs_x - obs_w/2
-    obs_t, obs_b = obs_y + obs_h/2, obs_y - obs_h/2
-
-    # obstacle corners: [top right, top left, bottom left, bottom right] (2,4)
-    obs_pts = torch.tensor([[obs_r, obs_l, obs_l, obs_r],
-                            [obs_t, obs_t, obs_b, obs_b]])
-
-    #offsets to find corners of box
-    y_off1 = box_half_diag / torch.sin(box_theta + torch.pi/4)
-    x_off1 = box_half_diag / torch.cos(box_theta + torch.pi/4)
-    y_off2 = box_half_diag / (torch.pi/4 - torch.sin(box_theta))
-    x_off2 = box_half_diag / (torch.pi/4 - torch.cos(box_theta))
+    w_obs, l_obs = OBSTACLE_HALFDIMS_TENSOR
+    B, state_size = state.shape
+    box_halfdim = box_size/2
     
-    box_pts = torch.zeros(B,2,4)
-    box_pts[:,0,0], box_pts[:,1,0] = box_x + x_off1, box_y + y_off1
-    box_pts[:,0,1], box_pts[:,1,1] = box_x - x_off2, box_y + y_off2
-    box_pts[:,0,2], box_pts[:,1,2] = box_x - x_off1, box_y - y_off1
-    box_pts[:,0,3], box_pts[:,1,3] = box_x + x_off2, box_y - y_off2
+    in_collision = torch.ones(B, device=state.device) # initialize everything as an intersection, then rule them out
 
-    #Check if any box corners are inside of the obstacle
-    box_in_obs_agg = torch.zeros(B)
-    for i in range(4):
-      x = box_pts[:,0,i]
-      y = box_pts[:,1,i]
-      box_in_obs = torch.logical_and(torch.le(x,obs_r), torch.ge(x,obs_l))
-      box_in_obs = torch.logical_and(box_in_obs, torch.le(y,obs_t))
-      box_in_obs = torch.logical_and(box_in_obs, torch.ge(y,obs_b))
-      box_in_obs_agg = torch.logical_or(box_in_obs_agg, box_in_obs)
+    # 1) Check they pass bounding circle test, which is faster to rule out non-intersecting
+    # obs_rad = ((w_obs**2 + l_obs**2)**0.5)
+    # box_rad = box_size * (2**0.5)/2
 
-    # Obstacle collision with box
-    rot_mats = torch.zeros(B,2,2)
-    rot_mats[:,0,0] = torch.cos(box_theta)
-    rot_mats[:,0,1] = torch.sin(box_theta)
-    rot_mats[:,1,0] = -torch.sin(box_theta)
-    rot_mats[:,1,1] = torch.cos(box_theta)
+    # obstacle_centre = obstacle_centre.unsqueeze(0)
+    # center_dists = torch.dist(obstacle_centre, state[:,:2])
 
-    obs_pts = obs_pts.repeat((B,1,1))  # (B,2,4)
-    rot_obs_pts = rot_mats @ obs_pts   # (B,2,4)
-    rot_box_pts = rot_mats @ box_pts   # (B,2,4)
+    # in_collision[center_dists > obs_rad+box_rad] = 0
 
-    #Check if any collision corners are inside of obstacle
-    obs_in_box_agg = torch.zeros(B)
-    for i in range(4):
-      x = rot_obs_pts[:,0,i]
-      y = rot_obs_pts[:,1,i]
+    # 2) Check those close enough to fail 1 with Separating Axis Theorem
+    to_corner = lambda w, l, theta: torch.hstack([w*torch.cos(theta)-l*torch.sin(theta),
+                                                  w*torch.sin(theta)+l*torch.cos(theta)])
 
-      box_r = rot_box_pts[:,0,0]
-      box_l = rot_box_pts[:,0,1]
-      box_t = rot_box_pts[:,1,0]
-      box_b = rot_box_pts[:,1,2]
-      obs_in_box = torch.logical_and(torch.le(x,box_r), torch.ge(x,box_l))
-      obs_in_box = torch.logical_and(obs_in_box, torch.le(y,box_t))
-      obs_in_box = torch.logical_and(obs_in_box, torch.ge(y,box_b)) 
-      obs_in_box_agg = torch.logical_or(obs_in_box_agg, obs_in_box)
+    zero_tensor = torch.zeros(1, device=state.device)
 
-    in_collision = torch.logical_or(box_in_obs_agg, obs_in_box_agg)
-    in_collision = torch.where(in_collision, 1, 0).type(torch.float)
+    obs_verts = torch.hstack((obstacle_centre + to_corner(w_obs, l_obs, zero_tensor),
+                              obstacle_centre + to_corner(w_obs, -l_obs, zero_tensor),
+                              obstacle_centre + to_corner(-w_obs, -l_obs, zero_tensor),
+                              obstacle_centre + to_corner(-w_obs, l_obs, zero_tensor)
+                              )).reshape(-1, 4, 2)
+
+    # print("obs_verts", obs_verts.data)
+    
+    state_verts = torch.hstack((state[:,:2] + to_corner(box_halfdim, box_halfdim, state[:,2:]),
+                                state[:,:2] + to_corner(box_halfdim, -box_halfdim, state[:,2:]),
+                                state[:,:2] + to_corner(-box_halfdim, -box_halfdim, state[:,2:]),
+                                state[:,:2] + to_corner(-box_halfdim, box_halfdim, state[:,2:])
+                                )).reshape(-1, 4, 2)
+    
+    # obstacle collide with box
+    si_Minus = state_verts[:,-1] - state_verts[:,0] # dims are (B, 2)
+    for i in range(state_verts.shape[1]):
+        si_Plus = torch.roll(state_verts, -i, 1)[:,1] - torch.roll(state_verts, -i, 1)[:,0] # the proposed seperating axis
+        ni = torch.cat([-si_Plus[:,1:], si_Plus[:,:1]],dim=-1) # the normal to the proposed separating axis
+        sgni = torch.sign(torch.sum(si_Minus * ni, dim=1)) # side that rect A is on    
+
+        prop_axis = torch.ones_like(in_collision) # becomes 0 if axis ruled out (if any not ruled out then no collision)
+        for j in range(obs_verts.shape[1]):
+            sij = torch.roll(obs_verts, -j, 1)[:,0] - torch.roll(state_verts, -i, 1)[:,0]
+            sgnj = torch.sign(torch.sum(sij * ni, dim=1))
+
+            prop_axis[sgni * sgnj > 0] = 0 # if they have same sign then rule out axis candidate
+
+        in_collision[prop_axis == 1] = 0 # Found seperating axis: no j vert ruled out i's edge
+        si_Minus = -si_Plus
+    
+    # box collide with obstacle
+    si_Minus = obs_verts[:,-1] - obs_verts[:,0] # dims are (B, 2)
+    for i in range(obs_verts.shape[1]):
+        si_Plus = torch.roll(obs_verts, -i, 1)[:,1] - torch.roll(obs_verts, -i, 1)[:,0] # the proposed seperating axis
+        ni = torch.cat([-si_Plus[:,1:], si_Plus[:,:1]],dim=-1) # the normal to the proposed separating axis
+        sgni = torch.sign(torch.sum(si_Minus * ni, dim=1)) # side that rect A is on        
+
+        temp_axis = torch.ones_like(in_collision)
+        for j in range(state_verts.shape[1]):
+            sij = torch.roll(state_verts, -j, 1)[:,0] - torch.roll(obs_verts, -i, 1)[:,0]
+            sgnj = torch.sign(torch.sum(sij * ni, dim=1))
+
+            temp_axis[sgni * sgnj > 0] = 0
+                
+        in_collision[temp_axis == 1] = 0 # Found seperating axis: no j vert ruled out i's edge
+        si_Minus = -si_Plus
     # ---
     return in_collision
 
